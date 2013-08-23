@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang='en'>
+<head>
+	<meta charset='utf-8'>
+	<title>BackBone with Yii REST services</title>
+	<link rel='stylesheet' href='css/bootstrap.css' />
+</head>
+<body>
+	<div class='container'>
+		<h1>Post Manager</h1>
+		<hr />
+		<div class='page'></div>
+	</div>
+	
+	<script type="text/template" id='post-list-template'>
+		<a href='#/new' class='btn btn-primary'>New Post</a>
+		<hr />
+		<table class="table striped">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Description</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				<% _.each(posts, function(post){ %>
+					<tr>
+						<td><%= post.get('name') %></td>
+						<td><%= post.get('description') %></td>
+						<td><a href="#/edit/<%= post.id %>" class="btn">Edit</a></td>
+					</tr>
+				<% }); %>
+			</tbody>
+		</table>	
+	</script>
+	
+	<script type="text/template" id='edit-post-template'>
+		<form class='edit-post-form'>
+			<legend><%= post ? 'Update' : 'Create' %> Post</legend>
+			<label>Name</label>
+			<input type='text' name='name' value="<%= post ? post.get('name') : '' %>" />
+			<label>Description</label>
+			<input type='text' name='description' value="<%= post ? post.get('description') : '' %>" />
+			<hr />
+			<button type='submit' class='btn'><%= post ? 'Update' : 'Create' %></button>
+			<% if(post) { %>
+				<input type='hidden' name='id' value="<%= post.id %>" />
+				<button type="button" class='btn btn-danger delete'>Delete</button>
+			<% }; %>
+			
+		</form>
+	</script>
+	
+	<script type="text/javascript" src='js/jquery-1.10.2.min.js'></script>
+	<script type="text/javascript" src='js/underscore-min.js'></script>
+	<script type="text/javascript" src='js/backbone-min.js'></script>
+	<script type="text/javascript">
+		$.ajaxPrefilter( function( options, originalOptions, jqXHR){
+			options.url = 'http://localhost/yii_test/api' + options.url;
+		});
+		
+		$.fn.serializeObject = function(){
+			var o = {};
+			var a = this.serializeArray();
+			$.each(a, function(){
+				if(o[this.name] !== undefined) {
+					if(!o[this.name].push) {
+						o[this.name] = [o[this.name]];
+					}
+					o[this.name].push(this.value || '');
+				} else {
+					o[this.name] = this.value || '';
+				}
+			});
+			return o;
+		};
+	
+		var Posts = Backbone.Collection.extend({
+			url : '/posts'
+		});
+		
+		var Post = Backbone.Model.extend({
+			urlRoot : '/posts'
+		});
+		
+		var PostList = Backbone.View.extend({
+			el : '.page',
+			render : function() {
+				var that = this;
+				var posts = new Posts();
+				posts.fetch({
+					success: function(posts) {
+						var template = _.template($('#post-list-template').html(), {posts: posts.models});
+						that.$el.html(template);
+					}
+				});
+			}
+		});
+		
+		var EditPost = Backbone.View.extend({
+			el : '.page',
+			render : function(options) {
+				var that = this;
+				if(options.id) {
+					that.post = new Post({id: options.id});
+					that.post.fetch({
+						success:function(post){
+							var template = _.template($('#edit-post-template').html(), {post: post});
+							that.$el.html(template);
+						}
+					});
+				}else {
+					var template = _.template($('#edit-post-template').html(), {post: null});
+					this.$el.html(template);
+				}
+			},
+			events: {
+				'submit .edit-post-form' : 'savePost',
+				'click .delete' : 'deletePost'
+			},
+			savePost : function(ev){
+				var postDetails = $(ev.currentTarget).serializeObject();
+				var post = new Post();
+				post.save(postDetails, {
+					success : function(post){
+						console.log("save" + post);
+						router.navigate('', {trigger: true });
+					},
+					error: function(msg) {
+						console.log("error save" + JSON.stringify(msg));
+						router.navigate('', {trigger: true });
+					}
+				});
+				//console.log(postDetails);
+				return false;
+			},
+			deletePost : function(ev){
+				this.post.destroy({
+					success: function() {
+						router.navigate('', {trigger: true });
+					},
+					error: function(msg) {
+						router.navigate('', {trigger: true });
+					}
+				});
+			}
+		});
+	
+		var Router = Backbone.Router.extend({
+			routes: {
+				'' : 'home',
+				'new' : 'editPost',
+				'edit/:id' : 'editPost'
+			}
+		});
+		
+		var postList = new PostList();
+		var editPost = new EditPost();
+		
+		var router = new Router();
+		router.on('route:home', function(){
+			postList.render();
+		});
+		
+		router.on('route:editPost', function(id){
+			editPost.render({id:id});
+		});
+		
+		Backbone.history.start();
+	</script>
+</body>
+</html>
